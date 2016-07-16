@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from string import ascii_lowercase, ascii_uppercase, printable
 
 from simplecrypt import encrypt, decrypt
+import clipboard
 
 
 def passiter(length=8, num_of_numbers=2, num_of_uppers=2, num_of_symbols=1):
@@ -30,6 +31,16 @@ def as_json(func):
         return json.dumps(
             func(self, *args), sort_keys=True, indent=4
         )
+    return wrapper
+
+
+def copy2clipboard(func):
+    def wrapper(self, *args):
+        dct = func(self, *args)
+        if len(dct) == 1:
+            print('Password has been copyed to clipboard.')
+            clipboard.copy(dct[args[0]])
+        return dct
     return wrapper
 
 
@@ -67,6 +78,7 @@ class Passist:
         self.write_encrypted(str(dct))
 
     @as_json
+    @copy2clipboard
     def show(self, name):
         dct = eval(self.read_encrypted())
         if isinstance(name, str):
@@ -77,6 +89,7 @@ class Passist:
             return dct
 
     @as_json
+    @copy2clipboard
     def add(self, name, password):
         with self.readwrite(name, password) as (dct, password):
             if name in dct.keys():
@@ -85,6 +98,7 @@ class Passist:
         return {name: password}
 
     @as_json
+    @copy2clipboard
     def update(self, name, password):
         with self.readwrite(name, password) as (dct, password):
             if name not in dct.keys():
@@ -110,7 +124,7 @@ def main():
     parser.add_argument('-p', '--password')
     args = parser.parse_args()
 
-    key = getpass("passist password: ")
+    key = getpass("Passist password: ")
     filename = './.p'
 
     passist = Passist(key, filename)
