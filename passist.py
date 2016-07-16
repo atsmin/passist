@@ -2,29 +2,12 @@
 import os
 import shutil
 import json
-import random
 import argparse
 from getpass import getpass
-from contextlib import contextmanager
-from string import ascii_lowercase, ascii_uppercase, printable
 
 from simplecrypt import encrypt, decrypt
-import clipboard
-
-
-def passiter(length=8, num_of_numbers=2, num_of_uppers=2, num_of_symbols=1):
-    numbers = list(map(str, range(0, 10)))
-    uppers = list(ascii_uppercase)
-    lowers = list(ascii_lowercase)
-    symbols = list(printable[62:94])  # !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
-    num_of_lowers = length - num_of_numbers - num_of_uppers - num_of_symbols
-    while True:
-        p = random.sample(numbers, num_of_numbers) + \
-            random.sample(uppers, num_of_uppers) + \
-            random.sample(lowers, num_of_lowers) + \
-            random.sample(symbols, num_of_symbols)
-        random.shuffle(p)
-        yield ''.join(p)
+import pyperclip
+from passiter import passiter
 
 
 def as_json(func):
@@ -40,7 +23,7 @@ def copy2clipboard(func):
         dct = func(self, *args)
         if len(dct) == 1:
             print('Password was copyed to clipboard.')
-            clipboard.copy(dct[args[0]])
+            pyperclip.copy(dct[args[0]])
         return dct
     return wrapper
 
@@ -53,6 +36,10 @@ class Passist:
     def __init__(self, key, filename):
         self.key = key
         self.filename = filename
+        self.dct = eval(self.read_encrypted())
+
+    def __del__(self):
+        self.write_encrypted(str(self.dct))
 
     def read_encrypted(self, string=True):
         if not os.path.isfile(self.filename):
@@ -72,50 +59,40 @@ class Passist:
             ciphertext = encrypt(self.key, plaintext)
             output.write(ciphertext)
 
-    @contextmanager
-    def readwrite(self, name, password):
-        dct = eval(self.read_encrypted())
-        if not password:
-            password = next(passiter())
-        yield (dct, password)
-        self.write_encrypted(str(dct))
-
     @as_json
     @copy2clipboard
     def show(self, name):
-        dct = eval(self.read_encrypted())
         if isinstance(name, str):
-            if name not in dct.keys():
+            if name not in self.dct.keys():
                 raise PassistExcepstion(name + ' doesn\'t exist in the keystore!')
-            return {name: dct[name]}
+            return {name: self.dct[name]}
         else:
-            return dct
+            return self.dct
 
     @as_json
     @copy2clipboard
     def add(self, name, password):
-        with self.readwrite(name, password) as (dct, password):
-            if name in dct.keys():
-                raise PassistExcepstion(name + ' already exists in the keystore!')
-            dct[name] = password
+        password = password or next(passiter())
+        if name in self.dct.keys():
+            raise PassistExcepstion(name + ' already exists in the keystore!')
+        self.dct[name] = password
         return {name: password}
 
     @as_json
     @copy2clipboard
     def update(self, name, password):
-        with self.readwrite(name, password) as (dct, password):
-            if name not in dct.keys():
-                raise PassistExcepstion(name + ' doesn\'t exist in the keystore!')
-            dct[name] = password
+        password = password or next(passiter())
+        if name not in self.dct.keys():
+            raise PassistExcepstion(name + ' doesn\'t exist in the keystore!')
+        self.dct[name] = password
         return {name: password}
 
     @as_json
     def delete(self, name, password):
-        with self.readwrite(name, password) as (dct, password):
-            if name not in dct.keys():
-                raise PassistExcepstion(name + ' doesn\'t exist in the keystore!')
-            del dct[name]
-        return dct
+        if name not in self.dct.keys():
+            raise PassistExcepstion(name + ' doesn\'t exist in the keystore!')
+        del self.dct[name]
+        return self.dct
 
     def backup(self, path):
         shutil.copyfile(self.filename, path)
@@ -132,7 +109,7 @@ def main():
     args = parser.parse_args()
 
     key = getpass("Passist password: ")
-    filename = './.p'
+    filename = '.passist'
 
     passist = Passist(key, filename)
     if args.show:
