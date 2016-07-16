@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 import os
+import shutil
 import json
 import random
 import argparse
@@ -38,7 +39,7 @@ def copy2clipboard(func):
     def wrapper(self, *args):
         dct = func(self, *args)
         if len(dct) == 1:
-            print('Password has been copyed to clipboard.')
+            print('Password was copyed to clipboard.')
             clipboard.copy(dct[args[0]])
         return dct
     return wrapper
@@ -58,6 +59,7 @@ class Passist:
             return '{}'
         with open(self.filename, 'rb') as input:
             ciphertext = input.read()
+            print('decrypting...')
             plaintext = decrypt(self.key, ciphertext)
             if string:
                 return plaintext.decode('utf8')
@@ -66,6 +68,7 @@ class Passist:
 
     def write_encrypted(self, plaintext):
         with open(self.filename, 'wb') as output:
+            print('encrypting...')
             ciphertext = encrypt(self.key, plaintext)
             output.write(ciphertext)
 
@@ -114,6 +117,9 @@ class Passist:
             del dct[name]
         return dct
 
+    def backup(self, path):
+        shutil.copyfile(self.filename, path)
+
 
 def main():
     parser = argparse.ArgumentParser(prog='passist.py')
@@ -122,6 +128,7 @@ def main():
     parser.add_argument('-u', '--update')
     parser.add_argument('-d', '--delete')
     parser.add_argument('-p', '--password')
+    parser.add_argument('-b', '--backup', nargs=1)
     args = parser.parse_args()
 
     key = getpass("Passist password: ")
@@ -139,6 +146,9 @@ def main():
     elif args.delete:
         print(passist.delete(args.delete, args.password))
         print('The password deleted successfully.')
+    elif args.backup:
+        passist.backup(args.backup[0])
+        print('The password file was backuped successfully.')
 
 
 if __name__ == '__main__':
